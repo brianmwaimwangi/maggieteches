@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop - {{ site_name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  {% include "_theme_head.html" %}
+  <style>
+    .product-card { border: none; border-radius: 15px; transition: all 0.3s; overflow: hidden; }
+    .product-card:hover { transform: translateY(-8px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+    .product-card img { height: 220px; object-fit: cover; }
+    .category-badge { background: #fff3e6; color: #e56e00; padding: 5px 14px; border-radius: 20px; font-size: 0.8rem; }
+    [data-bs-theme="dark"] .category-badge { background: #2a1a08; color: var(--brand-yellow); }
+    .original-price { text-decoration: line-through; color: #999; font-size: 0.85rem; margin-right: 6px; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+      {% if site_logo != 'default_logo.svg' %}
+        <img src="{{ url_for('brand_file', filename=thumb_name(site_logo)) }}" alt="{{ site_name }}" class="brand-logo me-2">
+      {% else %}
+        <i class="bi bi-bag"></i>
+      {% endif %}
+      {{ site_name }}
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    {% include "_theme_toggle_btn.html" %}
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto align-items-center">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Home</a></li>
+        <li class="nav-item"><a class="nav-link fw-bold" href="{{ url_for('shop') }}">Shop</a></li>
+        {% if session.user_id %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('orders') }}">Orders</a></li>
+          <li class="nav-item"><a class="nav-link position-relative" href="{{ url_for('view_cart') }}">
+            <i class="bi bi-cart fs-5"></i>
+            {% if cart|length > 0 %}<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ cart|length }}</span>{% endif %}
+          </a></li>
+          {% if session.is_admin %}<li class="nav-item"><a class="nav-link" href="{{ url_for('admin_panel') }}"><i class="bi bi-shield-lock"></i></a></li>{% endif %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i></a></li>
+        {% else %}
+          <li class="nav-item"><a class="nav-link small" href="{{ url_for('track_order') }}">Track Order</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+          <li class="nav-item"><a class="btn btn-primary text-white rounded-pill" href="{{ url_for('register') }}">Sign Up</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-4">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, msg in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show">{{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="row">
+    <div class="col-lg-3 mb-4">
+      <h5>Categories</h5>
+      <div class="list-group">
+        <a href="{{ url_for('shop') }}" class="list-group-item list-group-item-action {% if not selected %}active{% endif %}">All Products</a>
+        {% for c in categories %}
+          <a href="{{ url_for('shop', category=c.name) }}" class="list-group-item list-group-item-action {% if selected == c.name %}active{% endif %}">{{ c.name }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-lg-9">
+      <h4 class="mb-3">{% if selected %}{{ selected }}{% else %}All Products{% endif %}</h4>
+      <div class="row g-4">
+        {% for p in products %}
+        <div class="col-md-6 col-lg-4">
+          <div class="product-card card h-100 shadow-sm">
+            {% set primary_image = db.execute('SELECT filename FROM product_images WHERE product_id = ? AND is_primary = 1', (p.id,)).fetchone() %}
+            {% if primary_image %}
+              <img src="{{ url_for('uploaded_file', filename=thumb_name(primary_image.filename)) }}" loading="lazy" class="card-img-top" alt="{{ p.name }}">
+            {% else %}
+              <img src="https://via.placeholder.com/300x220?text=No+Image" loading="lazy" class="card-img-top" alt="{{ p.name }}">
+            {% endif %}
+            <div class="card-body">
+              <span class="category-badge">{{ p.category }}</span>
+              <h6 class="card-title mt-2">{{ p.name }}</h6>
+              <p class="card-text text-truncate small">{{ p.description }}</p>
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  {% if p.original_price %}
+                    <span class="original-price">KSh {{ "%.2f"|format(p.original_price) }}</span>
+                  {% endif %}
+                  <span class="fw-bold fs-5 text-primary">KSh {{ "%.2f"|format(p.price) }}</span>
+                </div>
+                {% set has_variants = db.execute('SELECT 1 FROM product_variants WHERE product_id = ? LIMIT 1', (p.id,)).fetchone() %}
+                {% if has_variants %}
+                  <a href="{{ url_for('product_detail', product_id=p.id) }}" class="btn btn-sm btn-outline-primary rounded-pill">Choose Options</a>
+                {% else %}
+                  <a href="{{ url_for('add_to_cart', product_id=p.id) }}" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-cart-plus"></i> Add</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+          <div class="text-center py-5">
+            <i class="bi bi-box-seam" style="font-size: 4rem; color: #ccc;"></i>
+            <h5 class="mt-3">No products yet</h5>
+            <p class="text-muted">Start adding products from the admin panel.</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="bg-dark text-white-50 mt-5 py-4">
+  <div class="container text-center"><small>© 2026 {{ site_name }}. All rights reserved.</small></div>
+</footer>
+
+{% include "_site_rating.html" %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

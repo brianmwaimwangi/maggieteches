@@ -1,0 +1,31 @@
+<div class="site-rating-footer">
+  <div class="container">
+    <div class="row g-4 align-items-center">
+      <div class="col-md-5 text-center text-md-start">
+        <h5 class="mb-1"><i class="bi bi-star-fill text-warning"></i> Website Rating</h5>
+        {% if site_rating_count and site_rating_count > 0 %}
+          {% set filled = site_rating_avg|round(0,'common')|int %}
+          <div class="fs-4 text-warning">
+            {% for i in range(1,6) %}<i class="bi {{ 'bi-star-fill' if i <= filled else 'bi-star' }}"></i>{% endfor %}
+          </div>
+          <p class="text-muted mb-0 small">{{ "%.1f"|format(site_rating_avg) }} out of 5 · based on {{ site_rating_count }} rating{{ 's' if site_rating_count != 1 else '' }}</p>
+        {% else %}
+          <p class="text-muted mb-0 small">No ratings yet — be the first to rate this site.</p>
+        {% endif %}
+      </div>
+      <div class="col-md-7">
+        <form method="post" action="{{ url_for('submit_site_review') }}" class="d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="star-rating-input" title="Rate this website">
+            {% for i in range(5,0,-1) %}
+              <input type="radio" id="rate{{ i }}" name="rating" value="{{ i }}" required>
+              <label for="rate{{ i }}"><i class="bi bi-star-fill"></i></label>
+            {% endfor %}
+          </div>
+          <input type="text" name="comment" class="form-control form-control-sm" placeholder="Optional comment (optional)" style="max-width: 240px;">
+          <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4">Submit Rating</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout - {{ site_name }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% include "_theme_head.html" %}
+</head>
+<body>
+<nav class="navbar navbar-light bg-white shadow-sm"><div class="container">
+  <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+    {% if site_logo != 'default_logo.svg' %}
+      <img src="{{ url_for('brand_file', filename=thumb_name(site_logo)) }}" alt="{{ site_name }}" class="brand-logo me-2">
+    {% else %}
+      <i class="bi bi-bag"></i>
+    {% endif %}
+    {{ site_name }}
+  </a>
+  <div class="d-flex align-items-center">
+    {% include "_theme_toggle_btn.html" %}
+    <a href="{{ url_for('view_cart') }}" class="btn btn-outline-primary rounded-pill ms-2"><i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Back to Cart</span></a>
+  </div>
+</div></nav>
+
+<div class="container mt-4" style="max-width: 800px;">
+  <h2><i class="bi bi-bag-check"></i> Checkout</h2>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="alert alert-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Order Summary</h5>
+      <table class="table table-sm">
+        <tbody>
+        {% for item in items %}
+          <tr>
+            <td>{{ item.product.name }}{% if item.variant_label %} <span class="text-muted small">({{ item.variant_label }})</span>{% endif %} × {{ item.qty }}</td>
+            <td class="text-end">KSh {{ "%.2f"|format(item.subtotal) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot><tr><th>Total</th><th class="text-end">KSh {{ "%.2f"|format(total) }}</th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      {% if not session.user_id %}
+        <h5 class="card-title">Your details</h5>
+        <p class="text-muted small">Checking out as a guest — no account needed. <a href="{{ url_for('login') }}">Have an account? Log in</a> to track orders in one place.</p>
+      {% else %}
+        <h5 class="card-title">Shipping</h5>
+        <p class="text-muted small">Ordering as <strong>{{ session.username }}</strong>.</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('checkout') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          {% if not session.user_id %}
+            <div class="col-md-6">
+              <label class="form-label">Full name</label>
+              <input type="text" name="guest_name" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" name="guest_email" class="form-control" required>
+            </div>
+          {% endif %}
+          <div class="col-12">
+            <label class="form-label">Shipping address</label>
+            <textarea name="shipping_address" class="form-control" rows="3" required placeholder="Street, city, state, ZIP"></textarea>
+          </div>
+
+          <div class="col-12">
+            <hr>
+            <div class="card border-0 bg-accent bg-opacity-10" style="background: rgba(255,183,3,.08);">
+              <div class="card-body">
+                <h5 class="card-title mb-3"><i class="bi bi-phone text-accent"></i> Pay with M-Pesa</h5>
+                {% if site_settings.payment_method == 'paybill' %}
+                  <p class="mb-1">Lipa na M-Pesa &rarr; <strong>Paybill</strong></p>
+                  <p class="mb-1">Business/Paybill Number: <strong class="fs-5">{{ site_settings.mpesa_paybill_number or 'Not set yet — contact us' }}</strong></p>
+                  <p class="mb-1">Account Number: <strong class="fs-5">{{ site_settings.mpesa_account_number or 'Not set yet — contact us' }}</strong></p>
+                {% else %}
+                  <p class="mb-1">Lipa na M-Pesa &rarr; <strong>Buy Goods and Services</strong></p>
+                  <p class="mb-1">Till Number: <strong class="fs-5">{{ site_settings.mpesa_till_number or 'Not set yet — contact us' }}</strong></p>
+                {% endif %}
+                <p class="mb-1">Amount to pay: <strong>KSh {{ "%.2f"|format(total) }}</strong></p>
+                {% if site_settings.mpesa_instructions %}
+                  <p class="text-muted small mt-2 mb-3">{{ site_settings.mpesa_instructions }}</p>
+                {% endif %}
+                <label class="form-label">M-Pesa Confirmation Code <span class="text-muted small">(e.g. QK7X8Y9Z1A)</span></label>
+                <input type="text" name="mpesa_code" class="form-control" placeholder="Enter the code from your M-Pesa SMS">
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <button type="submit" class="btn btn-success btn-lg rounded-pill px-5"><i class="bi bi-check-lg"></i> Place Order</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

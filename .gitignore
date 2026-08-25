@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+ecommerce.db
+static/uploads/*
+static/hero/*
+static/brand/*

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orders - {{ site_name }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% include "_theme_head.html" %}
+</head>
+<body>
+<nav class="navbar navbar-light bg-white shadow-sm"><div class="container">
+  <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+    {% if site_logo != 'default_logo.svg' %}
+      <img src="{{ url_for('brand_file', filename=thumb_name(site_logo)) }}" alt="{{ site_name }}" class="brand-logo me-2">
+    {% else %}
+      <i class="bi bi-bag"></i>
+    {% endif %}
+    {{ site_name }}
+  </a>
+  <div class="d-flex align-items-center">
+    {% include "_theme_toggle_btn.html" %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary rounded-pill ms-2"><i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Back</span></a>
+  </div>
+</div></nav>
+<div class="container mt-4">
+  <h2><i class="bi bi-box"></i> {% if is_admin %}All Orders{% else %}My Orders{% endif %}</h2>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="alert alert-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  <div class="table-responsive">
+  <table class="table table-hover">
+    <thead><tr><th>Order ID</th>{% if is_admin %}<th>User</th>{% endif %}<th>Total</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+    <tr>
+      <td>#{{ o.id }}</td>
+      {% if is_admin %}<td>{{ o.username }}</td>{% endif %}
+      <td>KSh {{ "%.2f"|format(o.total) }}</td>
+      <td><span class="badge bg-{% if o.status == 'pending' %}warning{% elif o.status == 'shipped' %}info{% else %}success{% endif %}">{{ o.status|title }}</span></td>
+      <td>{{ o.order_date[:16] }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="{% if is_admin %}5{% else %}4{% endif %}" class="text-center text-muted py-4">No orders yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% include "_site_rating.html" %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

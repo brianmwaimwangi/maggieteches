@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - {{ site_name }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% include "_theme_head.html" %}
+<style>
+  .admin-card { border: none; border-radius: 15px; transition: transform 0.3s; }
+  .admin-card:hover { transform: translateY(-5px); }
+  .nav-tabs .nav-link { border-radius: 30px; padding: 10px 25px; }
+  .nav-tabs .nav-link.active { background: #0d6efd; color: white; }
+  .hero-thumb { aspect-ratio: 4 / 5; object-fit: cover; border-radius: 10px; width: 100%; }
+  .thumbnail { height: 50px; object-fit: cover; border-radius: 8px; }
+  #storeLocationPicker { height: 320px; border-radius: 10px; }
+</style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark"><div class="container">
+  <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}"><i class="bi bi-shield-lock"></i> Admin Panel</a>
+  <div class="d-flex align-items-center">
+    {% include "_theme_toggle_btn.html" %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light rounded-pill ms-2"><i class="bi bi-arrow-left"></i> Back to Store</a>
+  </div>
+</div></nav>
+
+<div class="container mt-4">
+  <!-- Stats -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-3 col-6"><div class="admin-card bg-primary text-white p-3 text-center"><h3>{{ stats.products }}</h3><small>Products</small></div></div>
+    <div class="col-md-3 col-6"><div class="admin-card bg-success text-white p-3 text-center"><h3>{{ stats.users }}</h3><small>Users</small></div></div>
+    <div class="col-md-3 col-6"><div class="admin-card bg-warning text-dark p-3 text-center"><h3>{{ stats.orders }}</h3><small>Orders</small></div></div>
+    <div class="col-md-3 col-6"><div class="admin-card bg-info text-white p-3 text-center"><h3>${{ "%.0f"|format(stats.revenue) }}</h3><small>Revenue</small></div></div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="alert alert-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  <ul class="nav nav-tabs" id="adminTabs">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#products"><i class="bi bi-box"></i> Products</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#users"><i class="bi bi-people"></i> Users</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#orders"><i class="bi bi-list-check"></i> Orders</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#messages"><i class="bi bi-envelope"></i> Messages
+      {% if unread_count > 0 %}<span class="badge bg-accent text-dark rounded-pill">{{ unread_count }}</span>{% endif %}
+    </a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings"><i class="bi bi-gear"></i> Settings</a></li>
+  </ul>
+
+  <div class="tab-content mt-3">
+    <!-- Products -->
+    <div class="tab-pane active" id="products">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4>Manage Products</h4>
+        <button class="btn btn-primary rounded-pill" data-bs-toggle="collapse" data-bs-target="#addProductForm"><i class="bi bi-plus-lg"></i> Add Product</button>
+      </div>
+      <div class="collapse mb-3" id="addProductForm">
+        <div class="card card-body">
+          <form method="post" action="{{ url_for('add_product') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row g-2">
+              <div class="col-md-3"><input type="text" name="name" placeholder="Name" class="form-control" required></div>
+              <div class="col-md-2"><input type="number" step="0.01" name="original_price" placeholder="Orig. Price" class="form-control"></div>
+              <div class="col-md-2"><input type="number" step="0.01" name="price" placeholder="Sale Price" class="form-control" required></div>
+              <div class="col-md-5"><input type="text" name="description" placeholder="Description" class="form-control"></div>
+              <div class="col-12">
+                <label class="form-label small text-muted mb-1">Categories (pick any that apply)</label>
+                <div class="d-flex flex-wrap gap-3 mb-2">
+                  {% for c in categories %}
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="category_ids" value="{{ c.id }}" id="newcat{{ c.id }}">
+                      <label class="form-check-label" for="newcat{{ c.id }}">{{ c.name }}</label>
+                    </div>
+                  {% endfor %}
+                </div>
+                <input type="text" name="new_category" class="form-control form-control-sm" placeholder="Or type a new category to add and assign it">
+              </div>
+              <div class="col-12">
+                <p class="text-muted small mb-1">Upload up to 10 images (first image will be primary; resized automatically)</p>
+                {% for i in range(10) %}
+                  <input type="file" name="image_{{ i }}" class="form-control mb-1" accept="image/*" style="display:inline-block; width:auto;">
+                {% endfor %}
+              </div>
+              <div class="col-12">
+                <p class="text-muted small mb-1">Size / color variants (optional — leave blank rows unused). More can be added later from the Edit page.</p>
+                <div class="row g-1 mb-1 small text-muted"><div class="col-3">Size</div><div class="col-3">Color</div><div class="col-3">SKU</div><div class="col-3">Stock</div></div>
+                {% for i in range(3) %}
+                  <div class="row g-1 mb-1">
+                    <div class="col-3"><input type="text" name="variant_size_{{ i }}" class="form-control form-control-sm" placeholder="e.g. M"></div>
+                    <div class="col-3"><input type="text" name="variant_color_{{ i }}" class="form-control form-control-sm" placeholder="e.g. Red"></div>
+                    <div class="col-3"><input type="text" name="variant_sku_{{ i }}" class="form-control form-control-sm" placeholder="optional"></div>
+                    <div class="col-3"><input type="number" name="variant_stock_{{ i }}" class="form-control form-control-sm" placeholder="0" min="0"></div>
+                  </div>
+                {% endfor %}
+              </div>
+              <div class="col-12"><button class="btn btn-success w-100 rounded-pill"><i class="bi bi-plus-lg"></i> Add Product</button></div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>ID</th><th>Images</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr></thead>
+          <tbody>
+          {% for p in products %}
+          <tr>
+            <td>{{ p.id }}</td>
+            <td>
+              {% set img = db.execute('SELECT filename FROM product_images WHERE product_id = ? AND is_primary = 1', (p.id,)).fetchone() %}
+              {% if img %}
+                <img src="{{ url_for('uploaded_file', filename=thumb_name(img.filename)) }}" loading="lazy" class="thumbnail" alt="{{ p.name }}">
+              {% else %}
+                <span class="text-muted">No image</span>
+              {% endif %}
+            </td>
+            <td>{{ p.name }}</td>
+            <td>
+              {% if p.original_price %}<span class="text-decoration-line-through text-muted">${{ "%.2f"|format(p.original_price) }}</span> {% endif %}
+              <span class="text-primary fw-bold">${{ "%.2f"|format(p.price) }}</span>
+            </td>
+            <td>{{ p.category or '—' }}</td>
+            <td>
+              <a href="{{ url_for('edit_product', product_id=p.id) }}" class="btn btn-sm btn-warning rounded-pill"><i class="bi bi-pencil"></i></a>
+              <form method="post" action="{{ url_for('delete_product', product_id=p.id) }}" class="d-inline" onsubmit="return confirm('Delete this product?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger rounded-pill"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Users -->
+    <div class="tab-pane" id="users">
+      <h4>Users</h4>
+      <div class="table-responsive">
+      <table class="table table-striped">
+        <thead><tr><th>ID</th><th>Username</th><th>Admin</th></tr></thead>
+        <tbody>
+        {% for u in users %}
+        <tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{% if u.is_admin %}<span class="badge bg-primary">Yes</span>{% else %}No{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <!-- Orders -->
+    <div class="tab-pane" id="orders">
+      <h4>Orders</h4>
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead><tr><th>ID</th><th>Customer</th><th>Total</th><th>Status</th><th>Update</th></tr></thead>
+          <tbody>
+          {% for o in orders %}
+          <tr>
+            <td>#{{ o.id }}</td><td>{{ o.username }}</td><td>${{ "%.2f"|format(o.total) }}</td>
+            <td><span class="badge bg-{% if o.status == 'pending' %}warning{% elif o.status == 'shipped' %}info{% else %}success{% endif %}">{{ o.status|title }}</span></td>
+            <td>
+              <form method="post" action="{{ url_for('update_order', order_id=o.id) }}" class="d-flex gap-1">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="status" class="form-select form-select-sm">
+                  <option value="pending" {% if o.status=='pending' %}selected{% endif %}>Pending</option>
+                  <option value="shipped" {% if o.status=='shipped' %}selected{% endif %}>Shipped</option>
+                  <option value="delivered" {% if o.status=='delivered' %}selected{% endif %}>Delivered</option>
+                </select>
+                <button class="btn btn-sm btn-primary rounded-pill">Update</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="tab-pane" id="messages">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4>Payment / Order Messages <span class="text-muted small">— sent here automatically after checkout</span></h4>
+        {% if unread_count > 0 %}
+          <form method="post" action="{{ url_for('mark_all_messages_read') }}" class="d-inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill">Mark all read</button>
+          </form>
+        {% endif %}
+      </div>
+      {% if messages %}
+        <div class="list-group">
+          {% for m in messages %}
+            <div class="list-group-item d-flex justify-content-between align-items-start gap-3 {% if not m.is_read %}border-start border-4 border-warning{% endif %}">
+              <div>
+                {% if not m.is_read %}<span class="badge bg-accent text-dark me-1">New</span>{% endif %}
+                {{ m.message }}
+                <div class="text-muted small mt-1">
+                  {{ m.created_at }}
+                  {% if m.order_id %} · Order #{{ m.order_id }}
+                    {% if m.order_status %} · <span class="badge bg-{% if m.order_status == 'pending' %}warning{% elif m.order_status == 'shipped' %}info{% else %}success{% endif %}">{{ m.order_status|title }}</span>{% endif %}
+                  {% endif %}
+                </div>
+              </div>
+              <div class="d-flex gap-1 flex-shrink-0">
+                {% if not m.is_read %}
+                  <form method="post" action="{{ url_for('mark_message_read', message_id=m.id) }}" class="d-inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-success rounded-pill" title="Mark read"><i class="bi bi-check-lg"></i></button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('delete_message', message_id=m.id) }}" class="d-inline" onsubmit="return confirm('Delete this message?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill" title="Delete"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted">No messages yet. New orders and payment confirmations will show up here.</p>
+      {% endif %}
+    </div>
+
+    <!-- Settings -->
+    <div class="tab-pane" id="settings">
+  <!-- Admin Login Credentials -->
+  <div class="card mb-4">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Admin Login Credentials</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">Change the username and/or password used to log in to this admin panel. If this site is still using the default credentials it was set up with, change them now.</p>
+      <form method="post" action="{{ url_for('update_admin_account') }}" autocomplete="off">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">New Username <span class="text-muted small">(leave blank to keep current)</span></label>
+            <input type="text" name="new_username" class="form-control" placeholder="{{ session.username }}" autocomplete="off">
+          </div>
+          <div class="col-md-6"></div>
+          <div class="col-md-6">
+            <label class="form-label">New Password <span class="text-muted small">(leave blank to keep current)</span></label>
+            <input type="password" name="new_password" class="form-control" minlength="8" placeholder="At least 8 characters" autocomplete="new-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Confirm New Password</label>
+            <input type="password" name="confirm_password" class="form-control" minlength="8" placeholder="Repeat new password" autocomplete="new-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Current Password <span class="text-danger">*</span> <span class="text-muted small">(required to confirm any change)</span></label>
+            <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-dark rounded-pill px-4 mt-3"><i class="bi bi-save"></i> Update Login Credentials</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Site Settings -->
+  <div class="card mb-4">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0"><i class="bi bi-gear"></i> Site Settings</h5>
+    </div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('update_settings') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Site Name</label>
+            <input type="text" name="site_name" value="{{ site_name }}" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Current Logo <span class="text-muted small">(shown here at full preview size — navbar displays it at 64px tall)</span></label>
+            <div>
+              {% if site_logo != 'default_logo.svg' %}
+                <img src="{{ url_for('brand_file', filename=medium_name(site_logo)) }}" class="brand-logo-preview">
+              {% else %}
+                <span class="text-muted">Default logo (icon only — upload one for a custom logo)</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Upload New Logo</label>
+            <input type="file" name="site_logo" class="form-control" accept="image/*">
+          </div>
+          <div class="col-md-1">
+            <button type="submit" class="btn btn-success rounded-pill w-100"><i class="bi bi-save"></i></button>
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <h6 class="text-muted text-uppercase small mb-3">Homepage Welcome / Hero Section <span class="text-muted normal-case">(top-left banner text on the homepage)</span></h6>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Heading (first line)</label>
+            <input type="text" name="hero_heading" value="{{ site_settings.hero_heading }}" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Heading highlight (second line, accent color)</label>
+            <input type="text" name="hero_highlight" value="{{ site_settings.hero_highlight }}" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Call-to-action button text</label>
+            <input type="text" name="hero_cta_text" value="{{ site_settings.hero_cta_text }}" class="form-control">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Subtitle / welcome message</label>
+            <input type="text" name="hero_subtitle" value="{{ site_settings.hero_subtitle }}" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Footer tagline</label>
+            <input type="text" name="site_tagline" value="{{ site_settings.site_tagline }}" class="form-control">
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <h6 class="text-muted text-uppercase small mb-3">"Why Shop With Us" Features</h6>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Section title</label>
+            <input type="text" name="features_title" value="{{ site_settings.features_title }}" class="form-control" style="max-width: 400px;">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small"><i class="bi bi-phone"></i> Feature 1 title</label>
+            <input type="text" name="feature1_title" value="{{ site_settings.feature1_title }}" class="form-control mb-1">
+            <input type="text" name="feature1_text" value="{{ site_settings.feature1_text }}" class="form-control form-control-sm" placeholder="Short description">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small"><i class="bi bi-truck"></i> Feature 2 title</label>
+            <input type="text" name="feature2_title" value="{{ site_settings.feature2_title }}" class="form-control mb-1">
+            <input type="text" name="feature2_text" value="{{ site_settings.feature2_text }}" class="form-control form-control-sm" placeholder="Short description">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small"><i class="bi bi-patch-check"></i> Feature 3 title</label>
+            <input type="text" name="feature3_title" value="{{ site_settings.feature3_title }}" class="form-control mb-1">
+            <input type="text" name="feature3_text" value="{{ site_settings.feature3_text }}" class="form-control form-control-sm" placeholder="Short description">
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-phone"></i> M-Pesa Payment Details</h6>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label d-block">Payment method customers see at checkout</label>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="payment_method" id="payTill" value="till" {% if site_settings.payment_method != 'paybill' %}checked{% endif %}>
+              <label class="form-check-label" for="payTill">Buy Goods (Till Number)</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="payment_method" id="payPaybill" value="paybill" {% if site_settings.payment_method == 'paybill' %}checked{% endif %}>
+              <label class="form-check-label" for="payPaybill">Paybill + Account Number</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Till Number</label>
+            <input type="text" name="mpesa_till_number" value="{{ site_settings.mpesa_till_number }}" class="form-control" placeholder="e.g. 123456">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Paybill Number</label>
+            <input type="text" name="mpesa_paybill_number" value="{{ site_settings.mpesa_paybill_number }}" class="form-control" placeholder="e.g. 400200">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Account Number</label>
+            <input type="text" name="mpesa_account_number" value="{{ site_settings.mpesa_account_number }}" class="form-control" placeholder="e.g. your shop name">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Payment instructions shown to customers</label>
+            <textarea name="mpesa_instructions" class="form-control" rows="2">{{ site_settings.mpesa_instructions }}</textarea>
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <h6 class="text-muted text-uppercase small mb-1"><i class="bi bi-geo-alt"></i> Store Location (Map Pin)</h6>
+        <p class="text-muted small">This is the pin customers see on the homepage map, with directions to your shop. Click "Use My Device Location" while you're physically at the shop, or drag the pin on the map, then save.</p>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">Latitude</label>
+            <input type="text" inputmode="decimal" name="store_lat" id="storeLatInput" value="{{ site_settings.store_lat }}" class="form-control" placeholder="e.g. -1.286389">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Longitude</label>
+            <input type="text" inputmode="decimal" name="store_lng" id="storeLngInput" value="{{ site_settings.store_lng }}" class="form-control" placeholder="e.g. 36.817223">
+          </div>
+          <div class="col-md-6">
+            <button type="button" id="useDeviceLocationBtn" class="btn btn-outline-primary rounded-pill w-100">
+              <i class="bi bi-crosshair"></i> Use My Device Location
+            </button>
+          </div>
+          <div class="col-12">
+            <div id="locationStatus" class="small text-muted mb-2"></div>
+            <div id="storeLocationPicker"></div>
+            <div class="form-text">You can also drag the pin on the map to fine-tune the exact spot.</div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-success rounded-pill px-4 mt-4"><i class="bi bi-save"></i> Save All Settings</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Hero Image Gallery -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0"><i class="bi bi-image"></i> Hero Carousel ({{ hero_images|length }}/{{ max_hero_images }})</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">Portrait images shown as an auto-rotating carousel on the homepage. Upload up to {{ max_hero_images }} — they rotate automatically, no further setup needed.</p>
+      <div class="row g-3 mb-3">
+        {% for h in hero_images %}
+          <div class="col-6 col-md-2">
+            <img src="{{ url_for('hero_file', filename=thumb_name(h.filename)) }}" loading="lazy" class="hero-thumb">
+            <form method="post" action="{{ url_for('delete_hero_image', hero_id=h.id) }}" class="mt-1" onsubmit="return confirm('Remove this hero image?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger w-100"><i class="bi bi-trash"></i> Remove</button>
+            </form>
+          </div>
+        {% else %}
+          <div class="col-12 text-muted">No hero images yet — add some below.</div>
+        {% endfor %}
+      </div>
+      {% if hero_images|length < max_hero_images %}
+        <form method="post" action="{{ url_for('add_hero_image') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label">Add hero image(s) — portrait photos work best</label>
+              <input type="file" class="form-control" name="hero_images" accept="image/*" multiple required>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-primary rounded-pill w-100"><i class="bi bi-upload"></i> Upload</button>
+            </div>
+          </div>
+        </form>
+      {% else %}
+        <div class="alert alert-info mb-0">Maximum of {{ max_hero_images }} hero images reached. Remove one to add another.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Category Management -->
+  <div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+      <h5 class="mb-0"><i class="bi bi-tags"></i> Categories</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">Manage the category list products can be tagged with when adding or editing them.</p>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        {% for c in categories %}
+          <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-2 p-2">
+            {{ c.name }} <span class="text-muted">({{ c.product_count }})</span>
+            <form method="post" action="{{ url_for('delete_category', category_id=c.id) }}" class="d-inline" onsubmit="return confirm('Delete category \'{{ c.name }}\'? This does not delete products.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-link text-danger p-0 border-0 align-baseline"><i class="bi bi-x-circle"></i></button>
+            </form>
+          </span>
+        {% else %}
+          <span class="text-muted">No categories yet.</span>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('add_category') }}" class="row g-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-4"><input type="text" name="name" class="form-control" placeholder="New category name" required></div>
+        <div class="col-md-2"><button class="btn btn-secondary rounded-pill w-100"><i class="bi bi-plus-lg"></i> Add</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Cloudinary image backup -->
+  <div class="card mb-4">
+    <div class="card-header {% if cloudinary_enabled %}bg-success{% else %}bg-warning{% endif %} text-white">
+      <h5 class="mb-0"><i class="bi bi-cloud-arrow-up"></i> Image Cloud Backup (Cloudinary)</h5>
+    </div>
+    <div class="card-body">
+      {% if cloudinary_enabled %}
+        <p class="mb-3"><i class="bi bi-check-circle-fill text-success"></i> Cloudinary is connected. Every uploaded product, hero and logo image is automatically backed up to the cloud, so images won't be lost even if the server's storage is wiped on redeploy.</p>
+      {% else %}
+        <p class="mb-3"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Cloudinary isn't configured yet - uploaded images are only stored on this server's local disk. On some hosts that storage is wiped on every redeploy, which would delete your images.</p>
+      {% endif %}
+
+      {% if cloudinary_env_locked %}
+        <p class="text-muted small mb-0">Configured via the server's <code>CLOUDINARY_CLOUD_NAME</code> / <code>CLOUDINARY_API_KEY</code> / <code>CLOUDINARY_API_SECRET</code> environment variables, so they take priority over anything entered here. To change them, update those variables and restart the server.</p>
+      {% else %}
+        <p class="text-muted small mb-3">Enter your credentials below — free account at <a href="https://cloudinary.com/users/register/free" target="_blank" rel="noopener">cloudinary.com</a>, no credit card required. Saved to the database and applied immediately, no restart needed. (You can also set the <code>CLOUDINARY_CLOUD_NAME</code> / <code>CLOUDINARY_API_KEY</code> / <code>CLOUDINARY_API_SECRET</code> environment variables instead, which take priority over this form.)</p>
+        <form method="post" action="{{ url_for('update_settings') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label">Cloud Name</label>
+              <input type="text" name="cloudinary_cloud_name" value="{{ site_settings.cloudinary_cloud_name }}" class="form-control" placeholder="e.g. my-cloud-name">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">API Key</label>
+              <input type="text" name="cloudinary_api_key" value="{{ site_settings.cloudinary_api_key }}" class="form-control" placeholder="e.g. 123456789012345">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">API Secret</label>
+              <input type="password" name="cloudinary_api_secret" class="form-control" autocomplete="new-password"
+                     placeholder="{% if site_settings.cloudinary_api_secret %}Saved — leave blank to keep it{% else %}e.g. AbCdEfGhIjKlMnOpQrStUvWxYz{% endif %}">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success rounded-pill px-4 mt-3"><i class="bi bi-save"></i> Save Cloudinary Keys</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  var latInput = document.getElementById('storeLatInput');
+  var lngInput = document.getElementById('storeLngInput');
+  var statusEl = document.getElementById('locationStatus');
+  var defaultLatLng = [-1.286389, 36.817223]; // Nairobi - just a starting view
+
+  var startLat = parseFloat(latInput.value);
+  var startLng = parseFloat(lngInput.value);
+  var hasStart = !isNaN(startLat) && !isNaN(startLng);
+  var startLatLng = hasStart ? [startLat, startLng] : defaultLatLng;
+
+  var map = L.map('storeLocationPicker').setView(startLatLng, hasStart ? 16 : 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  var pinIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41]
+  });
+
+  var marker = L.marker(startLatLng, { icon: pinIcon, draggable: true }).addTo(map);
+
+  function setLatLngFields(lat, lng) {
+    latInput.value = lat.toFixed(6);
+    lngInput.value = lng.toFixed(6);
+  }
+
+  marker.on('dragend', function () {
+    var pos = marker.getLatLng();
+    setLatLngFields(pos.lat, pos.lng);
+  });
+
+  map.on('click', function (e) {
+    marker.setLatLng(e.latlng);
+    setLatLngFields(e.latlng.lat, e.latlng.lng);
+  });
+
+  document.getElementById('useDeviceLocationBtn').addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      statusEl.textContent = 'Geolocation isn\'t supported on this device/browser.';
+      return;
+    }
+    statusEl.textContent = 'Requesting device location permission…';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      setLatLngFields(lat, lng);
+      marker.setLatLng([lat, lng]);
+      map.setView([lat, lng], 17);
+      statusEl.textContent = 'Location captured. Drag the pin to fine-tune, then click "Save All Settings".';
+    }, function (err) {
+      statusEl.textContent = 'Could not get your location (' + err.message + '). You can still drag the pin manually.';
+    }, { enableHighAccuracy: true, timeout: 15000 });
+  });
+
+  // The map lives inside the Settings tab, which is hidden (display:none)
+  // until clicked, so Leaflet can't measure it correctly on first paint.
+  // Re-measure once on load, and again every time the Settings tab is opened.
+  setTimeout(function () { map.invalidateSize(); }, 300);
+  var settingsTabLink = document.querySelector('a[href="#settings"]');
+  if (settingsTabLink) {
+    settingsTabLink.addEventListener('shown.bs.tab', function () {
+      map.invalidateSize();
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edit Product - {{ site_name }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% include "_theme_head.html" %}
+<style>.thumbnail { height: 80px; object-fit: cover; }</style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark"><div class="container">
+  <a class="navbar-brand fw-bold" href="{{ url_for('admin_panel') }}"><i class="bi bi-shield-lock"></i> Admin Panel</a>
+  <div class="d-flex align-items-center">
+    {% include "_theme_toggle_btn.html" %}
+    <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-light rounded-pill ms-2"><i class="bi bi-arrow-left"></i> Back</a>
+  </div>
+</div></nav>
+
+<div class="container mt-4">
+  <h2>Edit Product: {{ product.name }}</h2>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="alert alert-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post" action="{{ url_for('edit_product', product_id=product.id) }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          <div class="col-md-4"><label class="form-label">Product Name</label><input type="text" name="name" value="{{ product.name }}" class="form-control" required></div>
+          <div class="col-md-2"><label class="form-label">Original Price (optional)</label><input type="number" step="0.01" name="original_price" value="{{ product.original_price or '' }}" class="form-control" placeholder="e.g., 99.99"></div>
+          <div class="col-md-2"><label class="form-label">Sale Price</label><input type="number" step="0.01" name="price" value="{{ product.price }}" class="form-control" required></div>          <div class="col-md-12"><label class="form-label">Description</label><textarea name="description" class="form-control" rows="2">{{ product.description }}</textarea></div>
+
+          <div class="col-12">
+            <label class="form-label">Categories</label>
+            <div class="d-flex flex-wrap gap-3 mb-2">
+              {% for c in all_categories %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="category_ids" value="{{ c.id }}" id="editcat{{ c.id }}" {% if c.id in selected_category_ids %}checked{% endif %}>
+                  <label class="form-check-label" for="editcat{{ c.id }}">{{ c.name }}</label>
+                </div>
+              {% else %}
+                <span class="text-muted small">No categories yet — add one below or from the admin panel.</span>
+              {% endfor %}
+            </div>
+            <input type="text" name="new_category" class="form-control form-control-sm" placeholder="Or type a new category to add and assign it">
+          </div>
+
+          <div class="col-12">
+            <hr>
+            <h5>Add More Images (max 10 total)</h5>
+            <p class="text-muted small">Current images: {{ images|length }}. Images are automatically resized into thumb/medium/large versions on upload.</p>
+            {% for i in range(10) %}
+              <div class="mb-2">
+                <label class="form-label">Image {{ i+1 }}</label>
+                <input type="file" name="image_{{ i }}" class="form-control" accept="image/*">
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="col-12">
+            <hr>
+            <h5>Size / Color Variants</h5>
+            <p class="text-muted small">Fill in a row to add a new variant (leave both size and color blank to skip). Existing variants are managed below.</p>
+            <div class="row g-2 mb-2 fw-semibold small text-muted">
+              <div class="col-md-3">Size</div><div class="col-md-3">Color</div><div class="col-md-2">SKU</div><div class="col-md-2">Stock</div>
+            </div>
+            {% for i in range(5) %}
+              <div class="row g-2 mb-2">
+                <div class="col-md-3"><input type="text" name="variant_size_{{ i }}" class="form-control form-control-sm" placeholder="e.g. M"></div>
+                <div class="col-md-3"><input type="text" name="variant_color_{{ i }}" class="form-control form-control-sm" placeholder="e.g. Red"></div>
+                <div class="col-md-2"><input type="text" name="variant_sku_{{ i }}" class="form-control form-control-sm" placeholder="optional"></div>
+                <div class="col-md-2"><input type="number" name="variant_stock_{{ i }}" class="form-control form-control-sm" placeholder="0" min="0"></div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary rounded-pill"><i class="bi bi-save"></i> Update Product</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if variants %}
+  <div class="mt-4">
+    <h5>Existing Variants</h5>
+    <table class="table table-sm">
+      <thead><tr><th>Size</th><th>Color</th><th>SKU</th><th>Stock</th><th>Price override</th><th></th></tr></thead>
+      <tbody>
+      {% for v in variants %}
+        <tr>
+          <td>{{ v.size or '—' }}</td>
+          <td>{{ v.color or '—' }}</td>
+          <td>{{ v.sku or '—' }}</td>
+          <td>{% if v.stock is not none and v.stock <= 0 %}<span class="text-danger">Out of stock</span>{% else %}{{ v.stock }}{% endif %}</td>
+          <td>{% if v.price_override %}KSh {{ "%.2f"|format(v.price_override) }}{% else %}—{% endif %}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_variant', variant_id=v.id) }}" onsubmit="return confirm('Remove this variant?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="mt-4">
+    <h5>Current Images</h5>
+    <div class="row g-3">
+      {% for img in images %}
+        <div class="col-md-2">
+          <img src="{{ url_for('uploaded_file', filename=thumb_name(img.filename)) }}" loading="lazy" class="thumbnail img-fluid rounded">
+          <div class="mt-1 small">
+            {% if img.is_primary %}<span class="badge bg-primary">Primary</span>{% endif %}
+            <form method="post" action="{{ url_for('delete_product_image', image_id=img.id) }}" class="d-inline" onsubmit="return confirm('Delete this image?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

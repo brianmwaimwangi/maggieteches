@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Order - {{ site_name }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+{% include "_theme_head.html" %}
+</head>
+<body>
+<nav class="navbar navbar-light bg-white shadow-sm"><div class="container">
+  <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+    {% if site_logo != 'default_logo.svg' %}
+      <img src="{{ url_for('brand_file', filename=thumb_name(site_logo)) }}" alt="{{ site_name }}" class="brand-logo me-2">
+    {% else %}
+      <i class="bi bi-bag"></i>
+    {% endif %}
+    {{ site_name }}
+  </a>
+  <div class="d-flex align-items-center">
+    {% include "_theme_toggle_btn.html" %}
+    <a href="{{ url_for('shop') }}" class="btn btn-outline-primary rounded-pill ms-2"><i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Continue Shopping</span></a>
+  </div>
+</div></nav>
+
+<div class="container mt-4" style="max-width: 600px;">
+  <h2><i class="bi bi-search"></i> Track a Guest Order</h2>
+  <p class="text-muted">Ordered without an account? Look it up with your order number and the email you used.</p>
+
+  <form method="post" class="card card-body mb-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <label class="form-label">Order #</label>
+        <input type="text" name="order_id" class="form-control" required>
+      </div>
+      <div class="col-md-7">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary rounded-pill">Find Order</button>
+      </div>
+    </div>
+  </form>
+
+  {% if order %}
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <h5>Order #{{ order.id }}</h5>
+          <span class="badge bg-{% if order.status == 'pending' %}warning{% elif order.status == 'shipped' %}info{% else %}success{% endif %}">{{ order.status|title }}</span>
+        </div>
+        <p class="text-muted small">Shipping to {{ order.shipping_address }}</p>
+        <table class="table table-sm">
+          <tbody>
+          {% for li in line_items %}
+            <tr>
+              <td>{{ li.product_name }}{% if li.variant_label %} <span class="text-muted small">({{ li.variant_label }})</span>{% endif %} × {{ li.qty }}</td>
+              <td class="text-end">KSh {{ "%.2f"|format(li.price * li.qty) }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot><tr><th>Total</th><th class="text-end">KSh {{ "%.2f"|format(order.total) }}</th></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  {% elif searched %}
+    <div class="alert alert-warning">No matching guest order found.</div>
+  {% endif %}
+</div>
+
+{% include "_site_rating.html" %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>
